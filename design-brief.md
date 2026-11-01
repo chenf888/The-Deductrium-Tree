@@ -341,7 +341,7 @@ Run: `node tools/simulate.js . --click 60 --dt {0.5,1,2} --max-hours 24`（`--cl
 | # | Symptom | Root cause | Fix |
 |---|---|---|---|
 | 1 | 载入即抛两次 `t.resetGain.add is not a function`（`tunNormalNextAt`） | 引擎把 `tmp[layer]` 分几趟填；第一次问 `nextAt` 时 `resetGain` 还是占位的 `{}` | `tunNormalNextAt`/`tunNormalGain` 全部经 `tunDec()` 取数；`softcapPower = 0` 时 `nextAt` 返回 `Infinity`（硬顶上没有下一级） |
-| 2 | 命令行输入框无法执行任何命令 | 引擎 `text-input` 只在 change 时写 `player.ded.cmd`（components.js:558），没有 submit 事件；ded 的 tabFormat 也没渲染 clickables | ded 增加 clickable 16「执行」→ `DED_exec(player.ded.cmd)`；tabFormat 增加 `["clickables", [1]]`，五个断言工具（#nf/#rp/#crp/check/unwrap）同时可见 |
+| 2 | 命令行输入框无法执行任何命令 | 引擎 `text-input` 只在 change 时写 `player.ded.cmd`（components.js:558），没有 submit 事件；ded 的 tabFormat 也没渲染 clickables | ded 增加 clickable 16「执行」→ `DED_exec(player.ded.cmd)`；tabFormat 增加 `["clickables", [1]]`，断言工具（#nf/#rp/check/unwrap）同时可见 |
 | 3 | T2 双语没有切换入口 | `setChineseMode` 从未被 UI 调用 | `sts` 侧层底部加语言按钮（`DED_langButton`），写入 localStorage 后重载；已实测 zh↔en 双向切换，地图文字走内核 `langMgr` |
 | 4 | 英文模式下累计读数以全角「）」结尾 | `displayThings` 的右括号写在 `L()` 外面 | 改为 `L("）", ")")` |
 | 5 | 浏览器验证的其它项 | — | tab 切换 16 个全部无异常；树渲染 21 个节点；`a1 A B` → 定理表两行、`proved` 递增；收束按钮 → `ded=4`、根货币归零、定理表清空；移动 `q` 成功（`1,1 → 1,2,1`，visited 3）；`save()` → 重载后 `ded=4` 保留；`DED_utf8ToB64`/`DED_b64ToUtf8` 往返一致，`exportSave()` 不抛错 |
@@ -351,6 +351,7 @@ Run: `node tools/simulate.js . --click 60 --dt {0.5,1,2} --max-hours 24`（`--cl
 | 9 | 挑战一进入就是已完成（goal 是本层货币），退出后进度标记残留 | TMT 进入挑战时 force 重置不会清空**当前层自己的** points | 每个挑战加 `onEnter` 把目标货币/计数器归零（typ 用 `chalGoals`，ord 用 `chalBase` 差值）；ded 挑战额外 `DED_resetWorkspace()` |
 | 10 | Info 页快捷键列表显示 `function () { return L(...) }` 源码；`d`（ded/geo）与 `m`（meta/mac）两个键被后加载的层覆盖，前者的快捷键实际上按不动 | 引擎只把字符串 `key.description` 直接插值（`systemComponents.js:147`，不会调用函数），`hotkeys` 全局表每个键只保留最后一个注册项 | 16 条 hotkey 描述全部改为加载期字符串 `L(zh,en)`（语言切换本来就整页 reload）；ded 收束改 `c`、meta 整理改 `r`，keys 现为 a/c/d/f/g/h/l/m/n/o/p/r/s/t/w/z 且不占用 q/e 两个六方向 |
 | 11 | 地图看不清、不知道自己在哪、WASD 像坏了；「定理表」里混进移动日志 | 三处实现错误叠加：① 引擎 grid 的入口是 `row*100+col`，旧代码按 `id-101` 取邻格 → 第 2/3 行全是空；② `["clickables",[1]]` 指向不存在的孔位 → 移动按钮从未渲染；③ 只有 4 条边有键，而起始格只有第 5 条边可走；④ 地图外格子被当成 type 0 显示成「路」；⑤ `DED_note` 把移动/闸门反馈和命令输出混在同一列表 | 重写 `geo` 地图区（`js/layers/geo.js`）：3×5 的六向键盘盘（Q/W/E + A/★/D + S），中心 ★ 高亮「你在这」，每格写类型+按键+闸价；上方「📍当前位置 #hash · 类型 · 序数 · 已走/已开闸」面板；W/A/S/D + Q/E 六向 hotkey；地图外格显示 `?` 且不可点；`DED_note(msg, channel)` 分 `map`/`general` 两条通道（定理表只显示命令反馈，地图反馈留在 geo）；新增 `.tmt-left`（`css/components.css`）绕过引擎 `* { text-align:center }`；toll 条只在脚下是闸/序数格时出现。挑战 11 的「邻域收成一格」也真正生效 |
+| 12 | `#rp` 按钮写成 repetition（实为 replace）；`#crp` 按钮按了报未知命令；「不可数」成就新开局即达成 | ① `#rp` 是 a4/替换（kernel 文案 “即 replace”）；② `#crp` 只是内核内部替换校验用的名字，不是用户命令；③ `stoRecord()` 在 `unlocked()` 的 `&&` 左侧先执行，**先记录再判断**，所有章节（以及「≥4 章」的成就 96）在首次渲染就入账；④ 章节条件用了 `player.X.unlocked`，而本移植所有层 startData 都是 `unlocked: true` → 新档也会算 3 章 | `#rp` 显示改「替换 / replace」，`#nf` 同时纠正为「变量非自由 / not free」（内核注释：nf = not free）；删除 `#crp` 按钮与 u31 文案；章节数与「不可数」改为 `stoChapterCount()` 从真实进度实时计算（geo/meta/typ 用 `best.gte(1)` 而非 `unlocked`），删除写状态的 `stoRecord`；`tools/smoke.js` 新增「fresh save 上没有成就已完成」的回归检查 |
 
 Feel proxies, per layer (handbook 14 §5.3 — 观察，不是调参信号):
 

@@ -34,6 +34,17 @@ addLayer("ach", {
     row: "side",
     startData() { return { unlocked: true, points: new Decimal(0) } },
     tabFormat: [["display-text", function() { return L("已收集 ", "Collected ") + player.ach.achievements.length + " / " + ACH_TOTAL + L(" 个成就", " achievements") }], "blank", "achievements"],
+
+    update(diff) {
+        // Repair saves written before the stoRecord fix: "Uncountable" was awarded from chapters
+        // recorded during rendering, before their unlock gate had been tested.
+        if (stoChapterCount() >= 4) return
+        let earned = player.ach.achievements || []
+        for (let i = earned.length - 1; i >= 0; i--) {
+            if (Number(earned[i]) === 96) earned.splice(i, 1)
+        }
+    },
+
     achievements: {
         // --- the opening six: the original's first unlocked row -------------------------------
         11: {
@@ -521,7 +532,7 @@ addLayer("ach", {
         96: {
             name: function() { return L("不可数", "Uncountable") },
             tooltip: function() { return L("章节推进到第 4 章。奖励：全部收入 ×1.05。", "Unlock the fourth story chapter. Reward: all production ×1.05.") },
-            done() { return (player.sto.chapters || []).length >= 4 },
+            done() { return stoChapterCount() >= 4 },
             effect() { return new Decimal(1.05) }
         },
         97: {

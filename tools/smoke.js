@@ -198,6 +198,41 @@ for (const k of order) if (!global.player[k]) global.player[k] = mockPlayer[k];
 // the engine exposes the layer registry as `layers`; doReset hooks and update() read it
 global.layers = LAYERS;
 
+// --- fresh-save achievement check -----------------------------------------
+// The mock above unlocks every layer for hook coverage, so it cannot answer "would this be true
+// on a new game?". Rebuild a REAL fresh save from startData() and assert no achievement is done.
+// (Uncountable used to be: a chapter recorder pushed its index before testing the unlock gate.)
+if (LAYERS.ach && LAYERS.ach.achievements) {
+    const fresh = {};
+    for (const id of order) {
+        let sd = {};
+        try { sd = LAYERS[id].startData ? LAYERS[id].startData() : {}; } catch (_) { sd = {}; }
+        fresh[id] = Object.assign({}, sd, {
+            upgrades: [], milestones: [], challenges: [], achievements: [],
+            buyables: sd.buyables || {}, clickables: sd.clickables || {},
+        });
+        if (!fresh[id].points || typeof fresh[id].points.add !== "function") fresh[id].points = new Decimal(0);
+    }
+    if (typeof global.addedPlayerData === "function") {
+        try { Object.assign(fresh, global.addedPlayerData()); } catch (_) { /* reported above */ }
+    }
+    fresh.points = fresh.points || new Decimal(10);
+    const savedPlayer = global.player;
+    global.player = fresh;
+    for (const key in LAYERS.ach.achievements) {
+        const a = LAYERS.ach.achievements[key];
+        if (!a || typeof a.done !== "function") continue;
+        let done = false;
+        try { done = !!a.done(); } catch (_) { continue; }
+        if (done) {
+            let name = "";
+            try { name = a.name(); } catch (_) { name = String(key); }
+            fail("S-ACHEARLY", "achievement " + key + " (" + name + ") is already done on a fresh save");
+        }
+    }
+    global.player = savedPlayer;
+}
+
 // --- exercise the hooks ---------------------------------------------------
 for (const id of order) {
     const L = LAYERS[id];

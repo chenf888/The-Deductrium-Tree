@@ -269,7 +269,7 @@ addLayer("ded", {
         },
         31: {
             title: function () { return L("断言工具", "Assertion Tools") },
-            description: function () { return L("解锁 #nf / #rp / #crp 断言按钮。", "Unlocks the #nf / #rp / #crp assertion buttons.") },
+            description: function () { return L("解锁 #nf / #rp 断言按钮。", "Unlocks the #nf / #rp assertion buttons.") },
             cost: new Decimal(2e4),
             unlocked() { return player.meta.unlocked },
         },
@@ -362,23 +362,16 @@ addLayer("ded", {
     clickables: {
         11: {
             title: function () { return "#nf" },
-            display() { return L("否定引入", "negation intro") },
+            display() { return L("变量非自由", "not free") },
             canClick() { return hasUpgrade("ded", 31) && DED_boot() },
             onClick() { DED_exec("#nf") },
             style: { "background-color": "#374151" },
         },
         12: {
             title: function () { return "#rp" },
-            display() { return L("重言式", "repetition") },
+            display() { return L("替换", "replace") },
             canClick() { return hasUpgrade("ded", 31) && DED_boot() },
             onClick() { DED_exec("#rp") },
-            style: { "background-color": "#374151" },
-        },
-        13: {
-            title: function () { return "#crp" },
-            display() { return L("矛盾重言", "contradiction") },
-            canClick() { return hasUpgrade("ded", 31) && DED_boot() },
-            onClick() { DED_exec("#crp") },
             style: { "background-color": "#374151" },
         },
         14: {
