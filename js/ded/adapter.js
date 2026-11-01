@@ -92,13 +92,13 @@ function DED_handleGate(name, tile, hash) {
     var price = DED_gatePrice(hash)
     if (DED_gateOpen(hash)) return true
     if (player.points.lt(price)) {
-        DED_note(L("推理素不足：需要 ", "not enough Deductriums: needs ") + fmtDed(price))
+        DED_note(L("推理素不足：需要 ", "not enough Deductriums: needs ") + fmtDed(price), "map")
         return false
     }
     player.points = player.points.sub(price).max(0)
     player.geo.openGates[DED_hashKey(hash)] = true
     player.gatesDestructed = player.gatesDestructed.add(1)
-    DED_note(L("拆开闸门 ", "gate destructed: ") + TRC(tile.text || name || hash))
+    DED_note(L("拆开闸门 ", "gate destructed: ") + TRC(tile.text || name || hash), "map")
     DED_dispatchKeywords(tile.text, "gate")
     DED_log("gate " + hash + " for " + fmtDed(price))
     return true
@@ -111,7 +111,7 @@ function DED_handleReward(hash, tile) {
     var amount = DED_parseAmount(tile.text)
     if (amount.lte(0)) amount = new Decimal(TUNING.gateRewardBase).times(Math.pow(TUNING.rewardStep, DED_tileRow(hash)))
     DED_grant(amount.times(DED_rewardMult()))
-    DED_note(L("拾取 ", "picked up ") + fmtDed(amount) + (tile.text ? " · " + TRC(tile.text) : ""))
+    DED_note(L("拾取 ", "picked up ") + fmtDed(amount) + (tile.text ? " · " + TRC(tile.text) : ""), "map")
     DED_dispatchKeywords(tile.text, "reward")
     DED_log("reward " + key + " = " + fmtDed(amount))
 }
@@ -319,7 +319,7 @@ function DED_noteOrdinal(hash, tile) {
     var ord = DED_ordinalOf(hash)
     if (!ord) return
     player.geo.ordinals[DED_hashKey(hash)] = ord.join ? ord.join(",") : String(ord)
-    DED_note(L("此处序数 ", "ordinal here ") + DED_printOrd(ord))
+    DED_note(L("此处序数 ", "ordinal here ") + DED_printOrd(ord), "map")
 }
 
 // ordBase 15→1: the deeper the ordinal ladder climbs, the smaller the base (src/hy/ordinal.ts).
@@ -416,6 +416,7 @@ function DED_challengeMult() {
 // state lives as plain objects on player.geo, which TMT saves for us; load replays it onto the world.
 function DED_syncWorldFromSave() {
     if (!DED.world) return
+    DED_migrateNotes()
     var gates = player.geo.openGates || {}
     for (var hash in gates) {
         if (!gates[hash]) continue
@@ -464,17 +465,39 @@ function DED_log(msg) {
     logArray.push({ type: 0, msg: String(msg) })
 }
 
-function DED_note(msg) {
+// Notes carry a channel: "map" feedback belongs on the geo panel, everything else (commands,
+// kernel messages) shows under the theorem table. Old saves stored bare strings — read as general.
+function DED_note(msg, channel) {
     if (!msg) return
     if (!player.ded.notes) player.ded.notes = []
-    player.ded.notes.unshift(String(msg))
-    if (player.ded.notes.length > 6) player.ded.notes.length = 6
+    player.ded.notes.unshift({ t: String(msg), c: channel || "general" })
+    if (player.ded.notes.length > 24) player.ded.notes.length = 24
 }
 
-function DED_notesRender() {
+function DED_migrateNotes() {
+    if (typeof player === "undefined" || !player.ded || !player.ded.notes) return
+    var notes = player.ded.notes
+    for (var i = 0; i < notes.length; i++) {
+        var n = notes[i]
+        if (n && typeof n === "object") continue
+        var s = String(n)
+        var mapish = /^(移动到 |moved to |无法通过|cannot pass|拆开闸门 |gate destructed: |拾取 |picked up |此处序数 |ordinal here )/.test(s)
+        notes[i] = { t: s, c: mapish ? "map" : "general" }
+    }
+}
+
+function DED_notesRender(channel) {
+    var want = channel || "general"
     var notes = (player.ded && player.ded.notes) || []
-    if (!notes.length) return ""
-    var out = "<div style='opacity:.75;font-size:13px;max-width:640px;margin:0 auto;text-align:left'>"
-    for (var i = 0; i < notes.length; i++) out += "<div>" + String(notes[i]) + "</div>"
+    var shown = []
+    for (var i = 0; i < notes.length && shown.length < 6; i++) {
+        var n = notes[i]
+        var c = (n && typeof n === "object" && n.c) ? n.c : "general"
+        if (c !== want) continue
+        shown.push(n && typeof n === "object" ? n.t : String(n))
+    }
+    if (!shown.length) return ""
+    var out = "<div class='tmt-left' style='opacity:.75;font-size:13px;max-width:640px;margin:0 auto'>"
+    for (var j = 0; j < shown.length; j++) out += "<div>" + String(shown[j]) + "</div>"
     return out + "</div>"
 }

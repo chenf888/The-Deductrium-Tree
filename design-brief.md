@@ -350,6 +350,7 @@ Run: `node tools/simulate.js . --click 60 --dt {0.5,1,2} --max-hours 24`（`--cl
 | 8 | 深层重置（geo 以上）不清空下层货币，整条阶梯可以免费点完 | 12 个 keep-list 都写了 `"points"`；`layerDataReset` 只保留 keep 列表里的字段 | 从全部 keep-list 移除 `"points"`，货币随层重置归零（浏览器实测 ord 重置后 geo/meta/fol/ded 均为 0） |
 | 9 | 挑战一进入就是已完成（goal 是本层货币），退出后进度标记残留 | TMT 进入挑战时 force 重置不会清空**当前层自己的** points | 每个挑战加 `onEnter` 把目标货币/计数器归零（typ 用 `chalGoals`，ord 用 `chalBase` 差值）；ded 挑战额外 `DED_resetWorkspace()` |
 | 10 | Info 页快捷键列表显示 `function () { return L(...) }` 源码；`d`（ded/geo）与 `m`（meta/mac）两个键被后加载的层覆盖，前者的快捷键实际上按不动 | 引擎只把字符串 `key.description` 直接插值（`systemComponents.js:147`，不会调用函数），`hotkeys` 全局表每个键只保留最后一个注册项 | 16 条 hotkey 描述全部改为加载期字符串 `L(zh,en)`（语言切换本来就整页 reload）；ded 收束改 `c`、meta 整理改 `r`，keys 现为 a/c/d/f/g/h/l/m/n/o/p/r/s/t/w/z 且不占用 q/e 两个六方向 |
+| 11 | 地图看不清、不知道自己在哪、WASD 像坏了；「定理表」里混进移动日志 | 三处实现错误叠加：① 引擎 grid 的入口是 `row*100+col`，旧代码按 `id-101` 取邻格 → 第 2/3 行全是空；② `["clickables",[1]]` 指向不存在的孔位 → 移动按钮从未渲染；③ 只有 4 条边有键，而起始格只有第 5 条边可走；④ 地图外格子被当成 type 0 显示成「路」；⑤ `DED_note` 把移动/闸门反馈和命令输出混在同一列表 | 重写 `geo` 地图区（`js/layers/geo.js`）：3×5 的六向键盘盘（Q/W/E + A/★/D + S），中心 ★ 高亮「你在这」，每格写类型+按键+闸价；上方「📍当前位置 #hash · 类型 · 序数 · 已走/已开闸」面板；W/A/S/D + Q/E 六向 hotkey；地图外格显示 `?` 且不可点；`DED_note(msg, channel)` 分 `map`/`general` 两条通道（定理表只显示命令反馈，地图反馈留在 geo）；新增 `.tmt-left`（`css/components.css`）绕过引擎 `* { text-align:center }`；toll 条只在脚下是闸/序数格时出现。挑战 11 的「邻域收成一格」也真正生效 |
 
 Feel proxies, per layer (handbook 14 §5.3 — 观察，不是调参信号):
 

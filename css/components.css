@@ -164,3 +164,9 @@
 	border-color: rgba(0, 0, 0, 0.125);
 }
 
+
+/* The engine-wide `* { text-align: center }` beats inheritance, so a left-aligned panel needs the
+   rule on every descendant. Used by the theorem table and the geo map panel. */
+.tmt-left, .tmt-left * {
+	text-align: left !important;
+}

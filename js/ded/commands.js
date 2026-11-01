@@ -302,7 +302,7 @@ function DED_renderTheorems() {
     var fs = DED.sys && DED.sys.fs
     var props = (fs && fs.propositions) || player.ded.table || []
     if (!props.length) return head + "<div style='opacity:.6'>" + L("空表——先按下面的按钮或输入一条规则。", "empty — run a rule, or type one below.") + "</div>" + DED_notesRender()
-    var out = "<div style='font-family:Consolas,monospace;text-align:left;max-width:760px;margin:0 auto;font-size:14px'>"
+    var out = "<div class='tmt-left' style='font-family:Consolas,monospace;max-width:760px;margin:0 auto;font-size:14px'>"
     for (var i = 0; i < props.length; i++) {
         var p = props[i], text
         if (p && p.value !== undefined) text = DED_astText(p.value)
@@ -321,7 +321,7 @@ function DED_renderRules() {
     var sys = DED.sys
     if (!sys || !sys.arrD) return head + "<div>" + L("内核未载入：删除 js/deductrium/ 时的只读状态（内核按作者授权复用，见 ATTRIBUTION.md）。","kernel not loaded: the read-only state when js/deductrium/ is absent (the kernel is reused under the author's permission — see ATTRIBUTION.md).") + "</div>"
     var fs = sys.fs
-    var out = "<div style='font-family:Consolas,monospace;text-align:left;max-width:760px;margin:0 auto;font-size:13px'>"
+    var out = "<div class='tmt-left' style='font-family:Consolas,monospace;max-width:760px;margin:0 auto;font-size:13px'>"
     var shown = 0
     for (var i = 0; i < sys.arrD.length && shown < 60; i++) {
         var name = sys.arrD[i]
@@ -340,7 +340,7 @@ function DED_renderRules() {
 
 function DED_renderDepth() {
     var fs = DED.sys && DED.sys.fs
-    var out = "<div style='text-align:left;max-width:760px;margin:0 auto'>"
+    var out = "<div class='tmt-left' style='max-width:760px;margin:0 auto'>"
     out += "<h3>" + L("推导深度", "Proof depth") + "</h3>"
     out += "<div>" + L("已证定理 ", "theorems proved this run: ") + formatWhole(player.ded.proved) + "</div>"
     out += "<div>" + L("规则数 ", "rules: ") + (DED.sys && DED.sys.arrD ? DED.sys.arrD.length : 0) +

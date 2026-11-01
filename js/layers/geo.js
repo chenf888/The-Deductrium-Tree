@@ -124,20 +124,28 @@ addLayer("geo", {
             unlocked() { return player[this.layer].unlocked },
         },
         {
-            key: "w", description: L("w：向北一步（双曲移动）", "w: step north (hyperbolic move)"),
-            onPress() { if (player[this.layer].unlocked) DED_walkDir("w") }, unlocked() { return player[this.layer].unlocked },
+            key: "w", description: L("w：向上（北）一步", "w: step up (north)"),
+            onPress() { GEO_hotkey(1) }, unlocked() { return player[this.layer].unlocked },
         },
         {
-            key: "a", description: L("a：向西一步", "a: step west"),
-            onPress() { if (player[this.layer].unlocked) DED_walkDir("a") }, unlocked() { return player[this.layer].unlocked },
+            key: "a", description: L("a：向左（西）一步", "a: step left (west)"),
+            onPress() { GEO_hotkey(4) }, unlocked() { return player[this.layer].unlocked },
         },
         {
-            key: "s", description: L("s：向南一步", "s: step south"),
-            onPress() { if (player[this.layer].unlocked) DED_walkDir("s") }, unlocked() { return player[this.layer].unlocked },
+            key: "s", description: L("s：向下（南）一步", "s: step down (south)"),
+            onPress() { GEO_hotkey(3) }, unlocked() { return player[this.layer].unlocked },
         },
         {
-            key: "d", description: L("d：向东一步（双曲移动）", "d: step east (hyperbolic move)"),
-            onPress() { if (player[this.layer].unlocked) DED_walkDir("d") }, unlocked() { return player[this.layer].unlocked },
+            key: "d", description: L("d：向右（东）一步", "d: step right (east)"),
+            onPress() { GEO_hotkey(2) }, unlocked() { return player[this.layer].unlocked },
+        },
+        {
+            key: "q", description: L("q：向左上（斜）一步", "q: step up-left (diagonal)"),
+            onPress() { GEO_hotkey(5) }, unlocked() { return player[this.layer].unlocked },
+        },
+        {
+            key: "e", description: L("e：向右上（斜）一步", "e: step up-right (diagonal)"),
+            onPress() { GEO_hotkey(0) }, unlocked() { return player[this.layer].unlocked },
         },
     ],
 
@@ -148,9 +156,9 @@ addLayer("geo", {
         "prestige-button",
         "blank",
         ["raw-html", function () { return GEO_currentTilePanel() }],
-        ["clickables", [1]],
         ["bar", "toll"],
         ["bar", "reach"],
+        ["display-text", function () { return L("点邻格移动（W/A/S/D，斜边 Q/E）。", "Click a neighbour to move (W/A/S/D, Q/E for diagonals).") }],
         "grid",
         ["microtabs", "map"],
         ["blank", "40px"],
@@ -159,7 +167,7 @@ addLayer("geo", {
     microtabs: {
         map: {
             "地图": {
-                content: [["blank", "15px"], ["raw-html", function () { return GEO_ringTable() }]],
+                content: [["blank", "15px"], ["raw-html", function () { return GEO_mapLegend() }]],
             },
             "路标": {
                 unlocked() { return hasUpgrade("geo", 15) },
@@ -173,43 +181,27 @@ addLayer("geo", {
         },
     },
 
-    // The neighbourhood view: the current tile plus its six {6,4} neighbours, then the ring beyond.
+    // The movement pad. TMT fills grid ids row-major as row*100+col, NOT 101,102,… — the old
+    // `id - 101` lookup is why rows 2–3 were blank. GEO_PAD fixes the layout explicitly:
+    //   row 1:  far    Q      W      E     far
+    //   row 2:  far    A      ★      D     far
+    //   row 3:  far  legend   S    legend  far
+    // Every immediate neighbour is one of the six {6,4} edges; far cells show the distance-2 ring.
     grid: {
         rows: 3,
         cols: 5,
         getStartData(id) { return 0 },
         getUnlocked(id) { return DED_boot() },
         getCanClick(data, id) {
-            let t = GEO_ring()[id - 101]
-            return !!(t && t.steppable)
+            let c = GEO_padCell(id)
+            return !!(c.kind === "dir" && c.entry && c.entry.hash && c.entry.type >= 0 && c.entry.type !== 1)
         },
-        getTitle(data, id) {
-            let t = GEO_ring()[id - 101]
-            if (!t) return "·"
-            return t.hash ? DED_blockTypeName(t.type) + " · " + (t.name || t.short) : L("脚下", "here")
-        },
-        getDisplay(data, id) {
-            let t = GEO_ring()[id - 101]
-            if (!t) return "·"
-            if (!t.hash) return "★"
-            return ["路", "墙", "闸", "奖", "序"][Math.max(0, Math.min(4, t.type))]
-        },
-        getStyle(data, id) {
-            let t = GEO_ring()[id - 101]
-            if (!t) return { "background-color": "#1b1f24" }
-            if (!t.hash) return { "background-color": "#41BEB1" }
-            let colors = ["#2b3138", "#4a1f1f", "#6b5a1e", "#1f4a2b", "#3a1f5e"]
-            return { "background-color": colors[Math.max(0, Math.min(4, t.type))] }
-        },
-        getTooltip(data, id) {
-            let t = GEO_ring()[id - 101]
-            if (!t || !t.hash) return ""
-            return t.hash + (t.text ? "<br>" + TRC(t.text) : "")
-        },
+        getDisplay(data, id) { return GEO_padDisplay(id) },
+        getStyle(data, id) { return GEO_padStyle(id) },
+        getTooltip(data, id) { return GEO_padTooltip(id) },
         onClick(data, id) {
-            let t = GEO_ring()[id - 101]
-            if (!t || !t.steppable) return
-            DED_stepTo(t.hash, DED_currentHash())
+            let c = GEO_padCell(id)
+            if (c.kind === "dir") GEO_tryStep(c.entry)
         },
     },
 
@@ -218,15 +210,22 @@ addLayer("geo", {
             direction: RIGHT,
             width: 360,
             height: 28,
+            // Only meaningful while standing on a toll tile; otherwise it is a dead bar.
+            unlocked() {
+                let tile = DED_currentBlock()
+                return !!(tile && (tile.type === 2 || tile.type === 4))
+            },
             display() {
                 let tile = DED_currentBlock()
-                if (!tile || tile.type !== 2) return L("脚下不是闸门", "no gate underfoot")
+                if (!tile || (tile.type !== 2 && tile.type !== 4)) return L("脚下不是闸门", "no gate underfoot")
+                if (DED_gateOpen(DED_currentHash())) return L("此处的闸已开", "this toll is already open")
                 let price = DED_gatePrice(DED_currentHash())
                 return fmtDed(player.points) + " / " + fmtDed(price) + L(" 开此闸", " to open this gate")
             },
             progress() {
                 let tile = DED_currentBlock()
-                if (!tile || tile.type !== 2) return 1
+                if (!tile || (tile.type !== 2 && tile.type !== 4)) return 1
+                if (DED_gateOpen(DED_currentHash())) return 1
                 return player.points.div(DED_gatePrice(DED_currentHash())).toNumber()
             },
             fillStyle: { "background-image": "linear-gradient(to right, #41BEB1, #9ef2e5)" },
@@ -399,65 +398,12 @@ addLayer("geo", {
         },
     },
 
-    clickables: {
-        11: {
-            title: function () { return L("北 W", "north W") },
-            display() { return "↑" },
-            canClick() { return DED_boot() },
-            onClick() { DED_walkDir("w") },
-        },
-        12: {
-            title: function () { return L("西 A", "west A") },
-            display() { return "←" },
-            canClick() { return DED_boot() },
-            onClick() { DED_walkDir("a") },
-        },
-        13: {
-            title: function () { return L("脚下", "here") },
-            display() { return "★" },
-            canClick() { return DED_boot() },
-            onClick() {
-                let tile = DED_currentBlock()
-                DED_note(L("此格：", "this tile: ") + (tile ? TRC(tile.text || "") + " [" + DED_blockTypeName(tile.type) + "]" : L("无名", "unnamed")))
-            },
-        },
-        14: {
-            title: function () { return L("东 D", "east D") },
-            display() { return "→" },
-            canClick() { return DED_boot() },
-            onClick() { DED_walkDir("d") },
-        },
-        15: {
-            title: function () { return L("南 S", "south S") },
-            display() { return "↓" },
-            canClick() { return DED_boot() },
-            onClick() { DED_walkDir("s") },
-        },
-        16: {
-            title: function () { return L("开闸", "open gate") },
-            display() {
-                let tile = DED_currentBlock()
-                if (!tile || tile.type !== 2) return "—"
-                return fmtDed(DED_gatePrice(DED_currentHash()))
-            },
-            canClick() {
-                let tile = DED_currentBlock()
-                return !!(tile && tile.type === 2 && !DED_gateOpen(DED_currentHash()) && player.points.gte(DED_gatePrice(DED_currentHash())))
-            },
-            onClick() { DED_openGate() },
-            style() {
-                let tile = DED_currentBlock()
-                return tile && tile.type === 2 ? { "background-color": "#6b5a1e" } : {}
-            },
-        },
-    },
-
     challenges: {
         11: {
             name: function () { return L("只走一步", "One Step Only") },
             challengeDescription() {
-                return L("邻域视图缩成一格：只能靠 WASD 与脚下这一格推理。",
-                    "The neighbourhood shrinks to one tile: only WASD and whatever is underfoot.") +
+                return L("邻域视图收成一格：只能靠按键和脚下这一格推理。",
+                    "The neighbourhood shrinks to a single tile: only the keys and whatever is underfoot.") +
                     "<br>" + challengeCompletions(this.layer, this.id) + "/1"
             },
             goalDescription() { return L("在本挑战内打开 2 道闸", "open 2 gates inside the challenge") },
@@ -512,55 +458,80 @@ function DED_deepestSeen() {
     return new Decimal(best)
 }
 
-// The tiling's own neighbourhood: getNeighborAndDir(current, edge, true) for edge 0..5 in {6,4}.
-function GEO_ring() {
-    let out = []
-    let here = { hash: "", type: 0, name: L("脚下", "here"), steppable: false, short: "" }
-    out.push(here)
-    if (!DED_boot()) { while (out.length < 15) out.push({ hash: "", type: 1, steppable: false }); return out }
-    let atlas = DED_atlas(), current = DED.world.currentTile
-    if (!atlas || !current || !atlas.getNeighborAndDir) { while (out.length < 15) out.push({ hash: "", type: 1, steppable: false }); return out }
-    let wide = hasUpgrade("geo", 32) ? 14 : 6
-    wide += Math.floor(getBuyableAmount("geo", 12).toNumber()) * 2
-    let seenHashes = {}
-    for (let edge = 0; edge < 6 && out.length - 1 < wide; edge++) {
+// --- movement pad ------------------------------------------------------------------------------
+// Edge numbers are the tiling's own (getNeighborAndDir), not geography: the original rotated its
+// camera by dragging, so the port fixes one six-way layout and draws it. q/e are the two edges
+// WASD never reached.
+var GEO_EDGE_KEY = { 5: "q", 1: "w", 0: "e", 4: "a", 3: "s", 2: "d" }
+var GEO_PAD = {
+    102: { edge: 5 }, 103: { edge: 1 }, 104: { edge: 0 },
+    202: { edge: 4 }, 203: { here: true }, 204: { edge: 2 },
+    303: { edge: 3 },
+    101: { far: 0 }, 105: { far: 1 }, 201: { far: 2 }, 205: { far: 3 }, 301: { far: 4 }, 305: { far: 5 },
+    302: { legend: "click" }, 304: { legend: "diag" },
+}
+
+function GEO_neighbor(edge) {
+    if (!DED_boot()) return null
+    let atlas = DED_atlas()
+    if (!atlas || !atlas.getNeighborAndDir || !DED.world) return null
+    let res = null
+    try { res = atlas.getNeighborAndDir(DED.world.currentTile, edge, true) } catch (e) { return null }
+    let hash = res ? DED_hashOf(res[0]) : ""
+    if (!hash) return null
+    let entry = GEO_ringEntry(hash)
+    entry.edge = edge
+    entry.key = GEO_EDGE_KEY[edge] || "?"
+    if ((entry.type === 2 || entry.type === 4) && !DED_gateOpen(hash)) entry.price = DED_gatePrice(hash)
+    return entry
+}
+
+var GEO_farCache = { key: null, list: [] }
+function GEO_farList() {
+    let anchors = Math.floor(getBuyableAmount("geo", 11).toNumber())
+    if (anchors <= 0 || !DED_boot()) return []
+    let key = DED_currentHash() + "|" + hasUpgrade("geo", 32) + "|" + anchors +
+        "|" + Object.keys(player.geo.openGates || {}).length + "|" + Object.keys(player.geo.taken || {}).length
+    if (GEO_farCache.key === key) return GEO_farCache.list
+    let atlas = DED_atlas(), current = DED.world.currentTile, out = []
+    if (!atlas || !atlas.getNeighborAndDir) return []
+    let seen = {}
+    for (let edge = 0; edge < 6; edge++) {
         let res = null
         try { res = atlas.getNeighborAndDir(current, edge, true) } catch (e) { res = null }
         let hash = res ? DED_hashOf(res[0]) : ""
-        if (!hash) continue
-        seenHashes[hash] = true
-        out.push(GEO_ringEntry(hash))
+        if (hash) seen[hash] = true
     }
-    let anchors = Math.floor(getBuyableAmount("geo", 11).toNumber())
-    if (anchors > 0) {
-        for (let edge = 0; edge < 6 && out.length - 1 < wide; edge++) {
-            let res = null
-            try { res = atlas.getNeighborAndDir(current, edge, true) } catch (e) { res = null }
-            let mid = res ? res[0] : null
-            if (!mid) continue
-            for (let e2 = 0; e2 < 6 && out.length - 1 < wide; e2++) {
-                let r2 = null
-                try { r2 = atlas.getNeighborAndDir(mid, e2, true) } catch (e) { r2 = null }
-                let hash = r2 ? DED_hashOf(r2[0]) : ""
-                if (!hash || seenHashes[hash]) continue
-                seenHashes[hash] = true
-                out.push(GEO_ringEntry(hash))
-            }
+    let wide = hasUpgrade("geo", 32) ? 12 : 6
+    for (let edge = 0; edge < 6 && out.length < wide; edge++) {
+        let res = null
+        try { res = atlas.getNeighborAndDir(current, edge, true) } catch (e) { res = null }
+        let mid = res ? res[0] : null
+        if (!mid) continue
+        for (let e2 = 0; e2 < 6 && out.length < wide; e2++) {
+            let r2 = null
+            try { r2 = atlas.getNeighborAndDir(mid, e2, true) } catch (e) { r2 = null }
+            let hash = r2 ? DED_hashOf(r2[0]) : ""
+            if (!hash || seen[hash]) continue
+            seen[hash] = true
+            out.push(GEO_ringEntry(hash))
         }
     }
-    while (out.length < 15) out.push({ hash: "", type: 1, steppable: false, short: "·" })
+    GEO_farCache = { key: key, list: out }
     return out
 }
 
 function GEO_ringEntry(hash) {
     let tile = DED_blockAt(hash)
-    let type = tile ? tile.type : 0
-    let steppable = true
-    if (type === 1) steppable = false
-    if (type === 2 && !DED_gateOpen(hash)) steppable = false
+    // -1 = the tiling has a neighbour here, but the 2096-tile map does not. Reporting it as
+    // "road" made cells look walkable while HWorld.hitTest() refused them.
+    let type = tile ? tile.type : -1
+    let steppable = type >= 0
+    if (type === 1 || type === -1) steppable = false
     return {
         hash: hash,
         type: type,
+        exists: !!tile,
         name: tile && tile.name ? tile.name : "",
         text: tile ? tile.text : "",
         short: hash.length > 10 ? hash.slice(-8) : hash,
@@ -568,25 +539,147 @@ function GEO_ringEntry(hash) {
     }
 }
 
-function GEO_currentTilePanel() {
-    let tile = DED_currentBlock()
-    let head = "<div style='max-width:720px;margin:0 auto;text-align:left'>"
-    head += "<b>" + L("所在：", "standing at: ") + DED_tileLabel() + "</b>"
-    if (!tile) return head + "<div style='opacity:.6'>" + L("此格没有登记内容。", "this tile carries no note.") + "</div></div>"
-    head += "<div style='opacity:.8'>" + (TRC(tile.text || "") || L("无文字。", "no text.")) + "</div>"
-    head += "<div style='opacity:.6;font-size:13px'>" + DED_blockTypeName(tile.type) +
-        (tile.type === 2 && !DED_gateOpen(DED_currentHash()) ? " · " + fmtDed(DED_gatePrice(DED_currentHash())) : "") + "</div>"
-    return head + "</div>" + DED_notesRender()
+function GEO_typeGlyph(type) {
+    if (Number(type) < 0) return "?"
+    return [L("路", "Rd"), L("墙", "Wl"), L("闸", "Gt"), L("奖", "Rw"), L("序", "Or")][Math.max(0, Math.min(4, Number(type) || 0))]
 }
 
-function GEO_ringTable() {
-    let ring = GEO_ring()
-    let out = "<div style='font-family:Consolas,monospace;text-align:left;max-width:760px;margin:0 auto;font-size:13px'>"
-    for (let i = 1; i < ring.length; i++) {
-        let t = ring[i]
-        if (!t.hash) continue
-        out += "<div><span style='opacity:.5'>" + (i) + "</span> " + DED_blockTypeName(t.type) + " " +
-            (t.name || t.short) + (t.text ? " · " + TRC(t.text).slice(0, 60) : "") + "</div>"
+function GEO_padCell(id) {
+    let def = GEO_PAD[id]
+    if (!def) return { kind: "blank" }
+    if (def.here) return { kind: "here" }
+    if (def.legend) return { kind: "legend", legend: def.legend }
+    // Challenge 11 is "one step only": the pad hides the neighbourhood, leaving the keys blind.
+    if ((def.edge !== undefined || def.far !== undefined) && typeof inChallenge === "function" && inChallenge("geo", 11))
+        return { kind: "blank" }
+    if (def.edge !== undefined) {
+        let entry = GEO_neighbor(def.edge)
+        return entry ? { kind: "dir", entry: entry } : { kind: "blank" }
     }
-    return out + "</div>"
+    if (def.far !== undefined) {
+        let t = GEO_farList()[def.far]
+        return t ? { kind: "far", entry: t } : { kind: "blank" }
+    }
+    return { kind: "blank" }
+}
+
+function GEO_padDisplay(id) {
+    let c = GEO_padCell(id)
+    if (c.kind === "here")
+        return "<div style='font-size:22px'>★</div><div style='font-size:11px;opacity:.95'>" + L("你在这", "here") + "</div>"
+    if (c.kind === "legend")
+        return "<div style='font-size:9px;opacity:.6;line-height:1.3'>" +
+            (c.legend === "diag" ? L("Q/E<br>斜边", "Q/E<br>diagonals") : L("点格<br>或按键", "click a<br>tile or key")) + "</div>"
+    if (c.kind === "far")
+        return "<div style='font-size:14px;opacity:.55'>" + GEO_typeGlyph(c.entry.type) +
+            "</div><div style='font-size:9px;opacity:.45'>" + L("两格外", "2 away") + "</div>"
+    if (c.kind === "dir") {
+        let e = c.entry
+        let out = "<div style='font-size:16px'>" + GEO_typeGlyph(e.type) + "</div>" +
+            "<div style='font-size:11px;opacity:.9'>" + e.key.toUpperCase() + "</div>"
+        if (e.price) out += "<div style='font-size:9px;color:#f0d060'>" + fmtDed(e.price) + "</div>"
+        return out
+    }
+    return ""
+}
+
+function GEO_padStyle(id) {
+    let c = GEO_padCell(id)
+    if (c.kind === "here")
+        return { "background-color": "#0f5f57", "border": "2px solid #9ef2e5", "box-shadow": "0 0 14px #41BEB1" }
+    if (c.kind === "far") return { "background-color": "#12161a", "opacity": .8 }
+    if (c.kind === "legend" || c.kind === "blank")
+        return { "background-color": "transparent", "border": "1px dashed rgba(255,255,255,0.08)", "box-shadow": "none" }
+    if (c.kind !== "dir") return { "background-color": "#12161a" }
+    let e = c.entry, colors = ["#2b3138", "#3a1616", "#6b5a1e", "#1f4a2b", "#3a1f5e"]
+    if (e.type < 0) return { "background-color": "#0e1013", opacity: .45, border: "1px dashed rgba(255,255,255,0.12)" }
+    let style = { "background-color": colors[Math.max(0, Math.min(4, e.type))] }
+    if (e.type === 1) { style.opacity = .55; style.border = "1px solid #5a2020" }
+    else if (e.type === 2 || e.type === 4) {
+        if (!e.price) style.border = "1px solid #4a7a5a"
+        else style.border = player.points.gte(e.price) ? "1px solid #f0d060" : "1px solid rgba(240,208,96,0.35)"
+    }
+    return style
+}
+
+function GEO_padTooltip(id) {
+    let c = GEO_padCell(id)
+    if (c.kind === "here") {
+        let tile = DED_currentBlock()
+        return "<b>" + L("你在这里", "you are here") + "</b><br>#" + (DED_currentHash() || "root") +
+            (tile ? "<br>" + DED_blockTypeName(tile.type) : "") +
+            (tile && tile.text ? "<br>" + String(TRC(tile.text)).replace(/\n/g, "<br>") : "")
+    }
+    if (c.kind === "far") {
+        let what = c.entry.type < 0 ? L("地图之外", "outside the map") : DED_blockTypeName(c.entry.type)
+        return L("两格之外 · ", "two tiles away · ") + what +
+            (c.entry.text ? "<br>" + String(TRC(c.entry.text)).replace(/\n/g, "<br>") : "")
+    }
+    if (c.kind !== "dir") return ""
+    let e = c.entry
+    if (e.type < 0) return "<b>" + e.key.toUpperCase() + "</b><br>" + L("地图之外：这里没有登记格子。", "outside the map: no tile is registered here.")
+    let txt = "<b>" + e.key.toUpperCase() + " · " + DED_blockTypeName(e.type) + "</b>"
+    if (e.type === 2 || e.type === 4) {
+        if (!DED_gateOpen(e.hash)) txt += "<br>" + L("需要 ", "needs ") + fmtDed(DED_gatePrice(e.hash))
+        else txt += "<br>" + L("已通过", "already passed")
+    }
+    if (e.name) txt += "<br>" + e.name
+    if (e.text) txt += "<br>" + String(TRC(e.text)).replace(/\n/g, "<br>")
+    return txt
+}
+
+function GEO_hotkey(edge) {
+    if (typeof player === "undefined" || !player.geo || !player.geo.unlocked) return
+    GEO_tryStep(GEO_neighbor(edge))
+}
+
+function GEO_tryStep(entry) {
+    if (!entry || !entry.hash) { DED_note(L("那个方向没有格子。", "no tile that way."), "map"); return }
+    if (entry.type < 0) { DED_note(L("那个方向是地图之外。", "that way is outside the map."), "map"); return }
+    if (entry.type === 1) { DED_note(L("那个方向是墙。", "that way is a wall."), "map"); return }
+    let ok = DED_stepTo(entry.hash, DED_currentHash())
+    if (ok) { DED_note(L("移动到 ", "moved to ") + DED_tileLabel(), "map"); return }
+    // A toll tile explains itself through DED_handleGate ("not enough Deductriums: needs …").
+    if (!entry.price) DED_note(L("无法通过。", "cannot pass."), "map")
+}
+
+function GEO_currentTilePanel() {
+    let hash = DED_currentHash()
+    let tile = DED_currentBlock()
+    let ord = player.geo && player.geo.ordinals ? player.geo.ordinals[DED_hashKey(hash)] : null
+    let label = DED_tileLabel(), hashLabel = hash || "root"
+    let html = "<div class='tmt-left' style='max-width:760px;margin:0 auto;padding:10px 14px;border-radius:10px;background:#10232b;border:1px solid #2c6b74'>"
+    html += "<div><span style='font-size:18px'>📍</span> <b style='color:#9ef2e5;letter-spacing:.5px'>" + L("当前位置", "YOU ARE HERE") + "</b> "
+    html += "<span style='font-family:Consolas,monospace;color:#e6f7f5'>" + label + "</span>"
+    if (label !== hashLabel) html += "<span style='opacity:.5;font-family:Consolas,monospace;font-size:12px'> #" + hashLabel + "</span>"
+    if (tile && tile.type === 4 && ord) html += " <span style='opacity:.8'>· " + L("序数 ω^", "ordinal ω^") + ord + "</span>"
+    else if (tile) html += " <span style='opacity:.8'>· " + DED_blockTypeName(tile.type) + "</span>"
+    html += "</div>"
+    html += "<div style='opacity:.7;font-size:13px'>" + L("已走 ", "walked ") + formatWhole(DED_visitedCount()) + L(" 格", " tiles") +
+        " · " + L("已开闸 ", "gates opened ") + formatWhole(DED_openGateCount()) + "</div>"
+    if (tile && tile.text)
+        html += "<div style='opacity:.85;font-size:13px;margin-top:4px;white-space:pre-line'>" + TRC(tile.text) + "</div>"
+    return html + "</div>" + DED_notesRender("map")
+}
+
+function GEO_mapLegend() {
+    let rows = [
+        [GEO_typeGlyph(0), DED_blockTypeName(0), "#2b3138", L("可以直接走进去", "walk straight in")],
+        [GEO_typeGlyph(1), DED_blockTypeName(1), "#3a1616", L("走不过去", "cannot pass")],
+        [GEO_typeGlyph(2), DED_blockTypeName(2), "#6b5a1e", L("点击付推理素，开门后通过", "click to pay Deductriums, then pass")],
+        [GEO_typeGlyph(3), DED_blockTypeName(3), "#1f4a2b", L("走上去自动拾取", "step on it to collect")],
+        [GEO_typeGlyph(4), DED_blockTypeName(4), "#3a1f5e", L("记录此处的序数", "records the ordinal here")],
+    ]
+    let html = "<div class='tmt-left' style='max-width:760px;margin:0 auto;font-size:13px'>"
+    html += "<div style='opacity:.8;margin-bottom:6px'>" + L("中间的 ★ 是你，六个方向各有一格；格子上写着该方向的按键。", "The ★ in the middle is you; each of the six directions has one tile, labelled with its key.") + "</div>"
+    html += "<table style='border-collapse:collapse'>"
+    for (let i = 0; i < rows.length; i++) {
+        html += "<tr><td style='padding:2px 10px 2px 0'><span style='display:inline-block;min-width:26px;text-align:center;padding:1px 5px;border-radius:4px;background:" + rows[i][2] + "'>" + rows[i][0] + "</span></td>" +
+            "<td style='padding:2px 10px;font-weight:bold'>" + rows[i][1] + "</td><td style='padding:2px 0;opacity:.75'>" + rows[i][3] + "</td></tr>"
+    }
+    html += "</table>"
+    html += "<div style='opacity:.65;margin-top:6px'>" + L("按键：W/A/S/D 走四边，Q/E 走两条斜边；也可以直接点邻格。原版靠拖动旋转视角，这里把它固定成这张盘。", "Keys: W/A/S/D for four edges, Q/E for the two diagonals; or click a neighbour. The original rotated the camera by dragging; this port fixes that into one pad.") + "</div>"
+    if (GEO_farList().length)
+        html += "<div style='opacity:.65'>" + L("两侧的深色格显示两格之外的格子（要先走到邻格才走得过去）。", "The dark cells on the sides show tiles two steps away (walk to a neighbour first).") + "</div>"
+    return html + "</div>"
 }

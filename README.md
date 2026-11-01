@@ -32,7 +32,7 @@ The port has no build step at runtime. `js/deductrium/kernel.js` is generated fr
 - **Command box** (`ded` tab): type into the input, then press the green **run** button — the engine's text input has no Enter-submit, so Enter alone only commits the text. The five assertion buttons (`#nf`, `#rp`, `#crp`, `check`, `unwrap`) sit next to it. Commands: `d <rule> [condition rows] [values]`, a bare rule name, `meta <cdt|dt|idt|cvt|vt|et|q|c|f|prd|cmt|ifft|cpt>`, `m <pos> <name>` (record macro), `mm`, `inln`, `entr`, `hyp <proposition>` / `hyp pop`, `del`, `rename`, `pop`, `clear`. The fast-metarule token language (`v u c < > e # : ,`) is the kernel's own.
 - **Axiom layers** (fol/pea/zfc/num/hott) charge their upgrades in Deductriums; adopt an axiom with the prestige button or its hotkey.
 - **Language:** the button at the bottom of the Statistics side tab switches between English (default) and 中文 and reloads.
-- **Hotkeys:** `d` close the proof (ded) · `g` re-project the manifold · `w/a/s/d` step the tiling's edges · `q` the q=4 rotation edge · `e` back to the parent tile · `t` type theory · `o` destruct a gate · `y` metarules · plus one per axiom layer. Hotkeys are suppressed while the command box has focus, so typing `d` never moves you.
+- **Hotkeys:** `c` close the proof (ded) · `g` re-project the manifold · `w/a/s/d` step the four main edges · `q/e` the two diagonal edges · `t` type theory · `o` destruct a gate · `r` metarules · plus one per axiom layer. Hotkeys are suppressed while the command box has focus, so typing `d` never moves you.
 - **Map:** click a neighbour in the grid, or use the walk pad. Six edges, because a {6,4} tiling has six neighbours (the original's WASD was a camera-relative approximation on its canvas).
 
 ## Development harness
